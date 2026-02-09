@@ -1,14 +1,12 @@
 // ================== НАСТРОЙКИ ==================
 const AUDIO_SRC = "music.mp3";
-
-// 2+ варианта правильного ответа
 const CORRECT_ANSWERS = ["justin bieber", "джастин бибер"];
 
 // Google Form endpoint (ВАЖНО: /formResponse)
 const FORM_RESPONSE_URL =
   "https://docs.google.com/forms/d/e/1FAIpQLSeExXdt2She7pOIeMIjmwb7JL_oRmrVwCZxoVN4dSemzHr4aQ/formResponse";
 
-// entry.* из твоей предзаполненной ссылки
+// entry.* (как у тебя, чтобы таблица НЕ слетела)
 const FORM_FIELDS = {
   sessionId:     "entry.53703048",
   questionId:    "entry.944260219",
@@ -19,7 +17,6 @@ const FORM_FIELDS = {
   isCorrect:     "entry.580079395",
 };
 
-// ID прохождения (один на всю сессию)
 const SESSION_ID = crypto.randomUUID();
 
 // ================== АУДИО ==================
@@ -36,12 +33,9 @@ const clickCatcher = document.getElementById("clickCatcher");
 // ================== STATE ==================
 let step = 0;
 let canAdvance = false;
-let isTransitioning = false;
 
 // ================== GOOGLE FORMS SUBMIT ==================
 function submitRowToGoogleForm(row) {
-  // row: {sessionId, questionId, questionTitle, answerText, answerChoice, answerMulti, isCorrect}
-  // Отправка через скрытый form+iframe (без CORS проблем).
   const iframeName = "hidden_iframe_" + Math.random().toString(16).slice(2);
 
   const iframe = document.createElement("iframe");
@@ -56,7 +50,6 @@ function submitRowToGoogleForm(row) {
   form.style.display = "none";
 
   const add = (entryName, value) => {
-    if (!entryName) return;
     const input = document.createElement("input");
     input.type = "hidden";
     input.name = entryName;
@@ -81,78 +74,69 @@ function submitRowToGoogleForm(row) {
   }, 1500);
 }
 
-// 1 строка на вопрос — сохранить только один раз
-function createQuestionSaver({ questionId, questionTitle }) {
-  let saved = false;
-
-  return function saveOnce({ answerText = "", answerChoice = "", answerMulti = [], isCorrect = false } = {}) {
-    if (saved) return;
-    saved = true;
-
-    const multi = Array.isArray(answerMulti) ? answerMulti.join(", ") : String(answerMulti ?? "");
-
-    submitRowToGoogleForm({
-      sessionId: SESSION_ID,
-      questionId,
-      questionTitle,
-      answerText,
-      answerChoice,
-      answerMulti: multi,
-      isCorrect: !!isCorrect,
-    });
-  };
+// ================== HELPERS ==================
+function normalize(s){ return (s ?? "").trim().toLowerCase(); }
+function isCorrectAnswer(raw){
+  const v = normalize(raw);
+  return CORRECT_ANSWERS.map(normalize).includes(v);
 }
 
-// ================== ЛОГИКА ПЕРЕХОДА (плавный слайд) ==================
-function slideOut(currentCardEl, onDone) {
-  if (isTransitioning) return;
-  isTransitioning = true;
+// ================== АНИМАЦИЯ ПЕРЕХОДА ==================
+function slideToNext() {
+  if (step >= cards.length - 1) return;
 
-  let done = false;
-
-  currentCardEl.classList.remove("slide-out");
-  void currentCardEl.offsetWidth; // reflow для перезапуска анимации
-  currentCardEl.classList.add("slide-out");
+  // запускаем CSS-анимацию ухода
+  cardEl.classList.remove("slide-out");
+  void cardEl.offsetWidth;
+  cardEl.classList.add("slide-out");
 
   const finish = () => {
-    if (done) return;
-    done = true;
+    cardEl.removeEventListener("animationend", finish);
+    cardEl.classList.remove("slide-out");
 
-    currentCardEl.removeEventListener("animationend", finish);
-    currentCardEl.classList.remove("slide-out");
-    isTransitioning = false;
-    onDone?.();
+    step++;
+    renderCard();
   };
 
-  currentCardEl.addEventListener("animationend", finish, { once: true });
+  cardEl.addEventListener("animationend", finish, { once: true });
 
-  // страховка, но теперь она не вызовет onDone дважды
-  setTimeout(finish, 450);
+  // простая страховка (на случай если animationend не придёт)
+  setTimeout(() => {
+    // если уже перешли — ничего не делаем
+    if (step === cards.length - 1) return;
+  }, 400);
 }
-
 
 // ================== КАРТОЧКИ ==================
 const cards = [
   {
     id: "welcome",
     render() {
+      canAdvance = false;
+      tapHint.classList.remove("show");
+      clickCatcher.classList.remove("active");
+
       const wrap = document.createElement("div");
       wrap.innerHTML = `
         <h1>Привет ✨</h1>
         <p>Я сделал(а) маленькое приглашение на 14 февраля.</p>
         <p>Нажми «Начать» — включится музыка, и мы пойдём дальше.</p>
         <div class="spacer"></div>
-        <button class="btn" id="startBtn">Начать</button>
+        <button class="btn" id="startBtn" type="button">Начать</button>
         <div class="hint">*Если музыка не играет — проверь, что <code>music.mp3</code> лежит рядом.</div>
       `;
 
       setTimeout(() => {
         const btn = document.getElementById("startBtn");
-        btn?.addEventListener("click", async (e) => {
+        btn?.addEventListener("click", (e) => {
+          e.preventDefault();
           e.stopPropagation();
-          try { await audio.play(); } catch (_) {}
-          nextCard(); // переход только по нажатию на кнопку
-        });
+
+          // Музыка — пытаемся включить, но не блокируем переход
+          audio.play().catch(() => {});
+
+          slideToNext();
+        }, { once: true });
       }, 0);
 
       return wrap;
@@ -169,12 +153,12 @@ const cards = [
       const wrap = document.createElement("div");
       wrap.innerHTML = `
         <h1>Мини-вопрос</h1>
-        <p>Напиши правильный ответ (пока заглушка).</p>
+        <p>Напиши правильный ответ.</p>
 
         <div class="field">
           <input id="answerInput" type="text" placeholder="Введи ответ…" autocomplete="off" />
           <div class="status" id="status"></div>
-          <div class="hint">Нажми на свободное место экрана, чтобы перейти дальше.</div>
+          <div class="hint">Когда появится “Правильно ✓”, нажми на свободное место экрана.</div>
         </div>
       `;
 
@@ -183,62 +167,63 @@ const cards = [
         const status = document.getElementById("status");
         input?.focus();
 
-        const saveQ1Once = createQuestionSaver({
-          questionId: "q1",
-          questionTitle: "Мини-вопрос",
-        });
-
         let lastValue = "";
-        let isCorrectNow = false;
+        let okNow = false;
+        let saved = false;
 
-        const goNext = () => {
-          // Переход ТОЛЬКО по касанию (тапу) и только если ответ верный
-          if (!canAdvance || isTransitioning) return;
-
-          // Сохраняем 1 строку на вопрос (последний ввод)
-          saveQ1Once({
-            answerText: lastValue,
-            answerChoice: "",
-            answerMulti: [],
-            isCorrect: isCorrectNow,
-          });
-
-          nextCard();
-        };
-
-        // Тап по свободной области
-        const onContinueTap = (e) => {
-          // не реагируем на тап по инпуту/кнопкам внутри карточки
-          if (e?.target && (e.target.tagName === "INPUT" || e.target.closest("input") || e.target.closest("button"))) {
-            return;
-          }
-          goNext();
-        };
-
-        // Включаем возможность тапнуть “вне карточки”, когда ответ верный
-        clickCatcher.onclick = onContinueTap;
-        deck.onclick = onContinueTap;
-
-        input?.addEventListener("input", () => {
-          lastValue = input.value;
-          isCorrectNow = isCorrectAnswer(lastValue);
-
-          if (isCorrectNow) {
+        function updateUI() {
+          if (okNow) {
             status.textContent = "Правильно ✓";
             status.classList.add("ok");
-
             canAdvance = true;
             tapHint.classList.add("show");
             clickCatcher.classList.add("active");
           } else {
             status.textContent = "";
             status.classList.remove("ok");
-
             canAdvance = false;
             tapHint.classList.remove("show");
             clickCatcher.classList.remove("active");
           }
+        }
+
+        input?.addEventListener("input", () => {
+          lastValue = input.value;
+          okNow = isCorrectAnswer(lastValue);
+          updateUI();
         });
+
+        function goNext() {
+          if (!canAdvance) return;
+
+          // 1 строка на вопрос — фиксируем то, что было введено на момент ухода
+          if (!saved) {
+            saved = true;
+            submitRowToGoogleForm({
+              sessionId: SESSION_ID,
+              questionId: "q1",
+              questionTitle: "Мини-вопрос",
+              answerText: lastValue,
+              answerChoice: "",
+              answerMulti: "",
+              isCorrect: okNow,
+            });
+          }
+
+          slideToNext();
+        }
+
+        // Нажатие по свободной области
+        function onTap(e) {
+          if (e?.target && (e.target.tagName === "INPUT" || e.target.closest("input") || e.target.closest("button"))) {
+            return;
+          }
+          goNext();
+        }
+
+        // Включаем “тап для продолжения” поверх экрана, но он активируется только когда canAdvance=true
+        clickCatcher.onclick = onTap;
+        deck.onclick = onTap;
       }, 0);
 
       return wrap;
@@ -246,20 +231,18 @@ const cards = [
   },
 
   {
-    id: "stub",
+    id: "end",
     render() {
       canAdvance = false;
       tapHint.classList.remove("show");
       clickCatcher.classList.remove("active");
-
-      // очищаем кастомные onclick, чтобы не мешали будущим карточкам
       clickCatcher.onclick = null;
       deck.onclick = null;
 
       const wrap = document.createElement("div");
       wrap.innerHTML = `
-        <h1>Дальше будет продолжение…</h1>
-        <p>Это заглушка. Следующие карточки добавим, когда начнём менять наполнение.</p>
+        <h1>Продолжение будет…</h1>
+        <p>Готово! Дальше добавим следующие карточки и наполнение.</p>
       `;
       return wrap;
     }
@@ -267,22 +250,12 @@ const cards = [
 ];
 
 // ================== РЕНДЕР ==================
-function renderCurrentCard() {
+function renderCard() {
   cardEl.classList.remove("deal-in");
   cardEl.innerHTML = "";
   cardEl.appendChild(cards[step].render());
   requestAnimationFrame(() => cardEl.classList.add("deal-in"));
 }
 
-// ================== ПРОВЕРКА ОТВЕТА ==================
-function isCorrectAnswer(raw) {
-  const v = normalize(raw);
-  return CORRECT_ANSWERS.map(normalize).includes(v);
-}
-
-// ================== HELPERS ==================
-function normalize(s){ return (s ?? "").trim().toLowerCase(); }
-
 // старт
-renderCurrentCard();
-
+renderCard();

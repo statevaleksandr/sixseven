@@ -1,27 +1,28 @@
 <!doctype html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>14 февраля — приглашение</title>
-  <link rel="stylesheet" href="style.css" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>14 февраля 💖</title>
+  <link rel="stylesheet" href="./styles.css" />
 </head>
+
 <body>
-  <div class="stage">
-    <div class="table-glow"></div>
+  <main class="stage" id="stage">
+    <div class="table-glow" aria-hidden="true"></div>
 
     <div class="deck" id="deck">
       <div class="back-card"></div>
       <div class="back-card"></div>
       <div class="back-card"></div>
 
-      <div class="card deal-in" id="card"></div>
-      <div class="tap-to-continue" id="tapHint">Нажми где угодно, чтобы продолжить</div>
+      <section class="card" id="card" aria-live="polite"></section>
     </div>
-  </div>
 
-  <div class="click-catcher" id="clickCatcher" aria-hidden="true"></div>
+    <div class="tap-to-continue" id="tapHint">Нажми на экран, чтобы продолжить</div>
+    <div class="click-catcher" id="clickCatcher" aria-hidden="true"></div>
+  </main>
 
-  <script src="app.js"></script>
+  <script src="./app.js"></script>
 </body>
 </html>

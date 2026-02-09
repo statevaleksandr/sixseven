@@ -70,6 +70,7 @@ body{
   justify-content: center;
   gap: 14px;
   user-select:none;
+  will-change: transform, opacity;
 }
 
 h1{
@@ -160,25 +161,6 @@ input[type="text"]:focus{
   transform: translateY(0);
 }
 
-.shards{
-  position:absolute;
-  inset: 0;
-  border-radius: var(--radius);
-  overflow: visible;
-  pointer-events:none;
-}
-.shard{
-  position:absolute;
-  overflow:hidden;
-  border-radius: 6px;
-  will-change: transform, opacity, filter;
-}
-.shard .shard-inner{
-  position:absolute;
-  inset: 0;
-  transform-origin: top left;
-}
-
 .deal-in{
   animation: dealIn .42s cubic-bezier(.2,.85,.2,1) both;
 }
@@ -199,7 +181,8 @@ input[type="text"]:focus{
   .btn{ width: 100%; text-align:center; align-self: stretch; }
   input[type="text"]{ width: 100%; }
 }
-/* Плавный уход карточки */
+
+/* Плавный уход карточки — происходит ТОЛЬКО когда JS добавляет класс */
 .card.slide-out {
   animation: slideOut .32s ease forwards;
 }
@@ -207,4 +190,3 @@ input[type="text"]:focus{
 @keyframes slideOut {
   to { transform: translateX(-120vw); opacity: 0; }
 }
-

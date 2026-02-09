@@ -8,13 +8,13 @@ const FORM_RESPONSE_URL =
 
 // entry.* (как у тебя, чтобы таблица НЕ слетела)
 const FORM_FIELDS = {
-  sessionId:     "entry.53703048",
-  questionId:    "entry.944260219",
+  sessionId: "entry.53703048",
+  questionId: "entry.944260219",
   questionTitle: "entry.960165383",
-  answerText:    "entry.378002717",
-  answerChoice:  "entry.1420466812",
-  answerMulti:   "entry.966787247",
-  isCorrect:     "entry.580079395",
+  answerText: "entry.378002717",
+  answerChoice: "entry.1420466812",
+  answerMulti: "entry.966787247",
+  isCorrect: "entry.580079395",
 };
 
 const SESSION_ID = crypto.randomUUID();
@@ -75,17 +75,19 @@ function submitRowToGoogleForm(row) {
 }
 
 // ================== HELPERS ==================
-function normalize(s){ return (s ?? "").trim().toLowerCase(); }
-function isCorrectAnswer(raw){
+function normalize(s) {
+  return (s ?? "").trim().toLowerCase();
+}
+function isCorrectAnswer(raw) {
   const v = normalize(raw);
   return CORRECT_ANSWERS.map(normalize).includes(v);
 }
 
 // ================== АНИМАЦИЯ ПЕРЕХОДА ==================
-function slideToNext() {
-  if (step >= cards.length - 1) return;
+function slideTo(targetStep) {
+  if (targetStep < 0 || targetStep >= cards.length) return;
+  if (targetStep === step) return;
 
-  // запускаем CSS-анимацию ухода
   cardEl.classList.remove("slide-out");
   void cardEl.offsetWidth;
   cardEl.classList.add("slide-out");
@@ -94,70 +96,77 @@ function slideToNext() {
     cardEl.removeEventListener("animationend", finish);
     cardEl.classList.remove("slide-out");
 
-    step++;
+    step = targetStep;
     renderCard();
   };
 
   cardEl.addEventListener("animationend", finish, { once: true });
+}
 
-  // простая страховка (на случай если animationend не придёт)
-  setTimeout(() => {
-    // если уже перешли — ничего не делаем
-    if (step === cards.length - 1) return;
-  }, 400);
+function slideToNext() {
+  if (step >= cards.length - 1) return;
+  slideTo(step + 1);
 }
 
 // ================== КАРТОЧКИ ==================
 const cards = [
+  // ---------- 1) Приветствие ----------
   {
     id: "welcome",
     render() {
       canAdvance = false;
+
       tapHint.classList.remove("show");
       clickCatcher.classList.remove("active");
+      clickCatcher.onclick = null;
+      deck.onclick = null;
 
       const wrap = document.createElement("div");
       wrap.innerHTML = `
-        <h1>...👍🏻🤷‍♂️...</h1>
-        <p>Если ты это читаешь, то все гуд. Это короткий скам-опрос, займет минуты 2</p>
-        <p>Если ты готова, то можешь начинать</p>
+        <h1>Добрый день/вечер:0</h1>
+        <p>Это некий скам-опрос</p>
+        <p>Если готова, то можешь начинать&lt;3</p>
         <div class="spacer"></div>
         <button class="btn" id="startBtn" type="button">Начать</button>
       `;
 
       setTimeout(() => {
-        const btn = document.getElementById("startBtn");
-        btn?.addEventListener("click", (e) => {
-          e.preventDefault();
-          e.stopPropagation();
+        document.getElementById("startBtn")?.addEventListener(
+          "click",
+          (e) => {
+            e.preventDefault();
+            e.stopPropagation();
 
-          // Музыка — пытаемся включить, но не блокируем переход
-          audio.play().catch(() => {});
-
-          slideToNext();
-        }, { once: true });
+            audio.play().catch(() => {});
+            slideToNext();
+          },
+          { once: true }
+        );
       }, 0);
 
       return wrap;
-    }
+    },
   },
 
+  // ---------- 2) Ввод ответа (переход по тапу, только когда правильно) ----------
   {
     id: "answer",
     render() {
       canAdvance = false;
+
       tapHint.classList.remove("show");
       clickCatcher.classList.remove("active");
+      clickCatcher.onclick = null;
+      deck.onclick = null;
 
       const wrap = document.createElement("div");
       wrap.innerHTML = `
-        <h1><center>Проверка подшар-отдела</center></h1>
-        <p>Кто исполняет под мелодию такую?</p>
+        <h1>Проверка подшар-отдела🗿</h1>
+        <p>Кто исполняет под эту мелодию?🤔</p>
 
         <div class="field">
-          <input id="answerInput" type="text" placeholder="можно на русском и английском" autocomplete="off" />
+          <input id="answerInput" type="text" placeholder="можешь ввести на русском/английском" autocomplete="off" />
           <div class="status" id="status"></div>
-          <div class="hint">Нажм куда угодно, когда появится "Правильно ✓"</div>
         </div>
       `;
 
@@ -175,12 +184,14 @@ const cards = [
             status.textContent = "Правильно ✓";
             status.classList.add("ok");
             canAdvance = true;
+
             tapHint.classList.add("show");
             clickCatcher.classList.add("active");
           } else {
             status.textContent = "";
             status.classList.remove("ok");
             canAdvance = false;
+
             tapHint.classList.remove("show");
             clickCatcher.classList.remove("active");
           }
@@ -195,7 +206,6 @@ const cards = [
         function goNext() {
           if (!canAdvance) return;
 
-          // 1 строка на вопрос — фиксируем то, что было введено на момент ухода
           if (!saved) {
             saved = true;
             submitRowToGoogleForm({
@@ -212,27 +222,62 @@ const cards = [
           slideToNext();
         }
 
-        // Нажатие по свободной области
         function onTap(e) {
-          if (e?.target && (e.target.tagName === "INPUT" || e.target.closest("input") || e.target.closest("button"))) {
+          if (
+            e?.target &&
+            (e.target.tagName === "INPUT" ||
+              e.target.closest("input") ||
+              e.target.closest("button"))
+          ) {
             return;
           }
           goNext();
         }
 
-        // Включаем “тап для продолжения” поверх экрана, но он активируется только когда canAdvance=true
         clickCatcher.onclick = onTap;
         deck.onclick = onTap;
       }, 0);
 
       return wrap;
-    }
+    },
   },
 
+  // ---------- 3) Просто текст (по тапу дальше) ----------
   {
-    id: "end",
+    id: "after-answer-text",
+    render() {
+      canAdvance = true;
+
+      tapHint.classList.add("show");
+      clickCatcher.classList.add("active");
+      clickCatcher.onclick = null;
+      deck.onclick = null;
+
+      const wrap = document.createElement("div");
+      wrap.innerHTML = `
+        <h1>Отлично!</h1>
+        <p>Это карточка просто с текстом.</p>
+        <p>Тапни в любом месте, чтобы продолжить.</p>
+      `;
+
+      function onTap(e) {
+        if (e?.target && (e.target.closest("button") || e.target.closest("input"))) return;
+        slideToNext();
+      }
+
+      clickCatcher.onclick = onTap;
+      deck.onclick = onTap;
+
+      return wrap;
+    },
+  },
+
+  // ---------- 4) Вопрос Да/Нет (ветвление) ----------
+  {
+    id: "yesno",
     render() {
       canAdvance = false;
+
       tapHint.classList.remove("show");
       clickCatcher.classList.remove("active");
       clickCatcher.onclick = null;
@@ -240,12 +285,314 @@ const cards = [
 
       const wrap = document.createElement("div");
       wrap.innerHTML = `
-        <h1>Продолжение будет…</h1>
-        <p>Готово! Дальше добавим следующие карточки и наполнение.</p>
+        <h1>Вопрос</h1>
+        <p>Продолжаем дальше?</p>
+
+        <div class="btn-row">
+          <button class="btn" id="yesBtn" type="button">Да</button>
+          <button class="btn" id="noBtn" type="button">Нет</button>
+        </div>
+      `;
+
+      setTimeout(() => {
+        const yesBtn = document.getElementById("yesBtn");
+        const noBtn = document.getElementById("noBtn");
+
+        const yesStartIdx = cards.findIndex((c) => c.id === "yes-1");
+        const noCommentIdx = cards.findIndex((c) => c.id === "comment-no");
+
+        let saved = false;
+        function saveChoice(choice) {
+          if (saved) return;
+          saved = true;
+
+          submitRowToGoogleForm({
+            sessionId: SESSION_ID,
+            questionId: "q2",
+            questionTitle: "Продолжаем?",
+            answerText: "",
+            answerChoice: choice,
+            answerMulti: "",
+            isCorrect: false,
+          });
+        }
+
+        yesBtn?.addEventListener(
+          "click",
+          (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            saveChoice("Да");
+            slideTo(yesStartIdx);
+          },
+          { once: true }
+        );
+
+        noBtn?.addEventListener(
+          "click",
+          (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            saveChoice("Нет");
+            slideTo(noCommentIdx);
+          },
+          { once: true }
+        );
+      }, 0);
+
+      return wrap;
+    },
+  },
+
+  // ================== ВЕТКА "ДА" ==================
+
+  // ---------- 5) yes-1 (по тапу дальше) ----------
+  {
+    id: "yes-1",
+    render() {
+      canAdvance = true;
+
+      tapHint.classList.add("show");
+      clickCatcher.classList.add("active");
+      clickCatcher.onclick = null;
+      deck.onclick = null;
+
+      const wrap = document.createElement("div");
+      wrap.innerHTML = `
+        <h1>Супер 😄</h1>
+        <p>Это первая карточка ветки “да”.</p>
+        <p>Тапни, чтобы продолжить.</p>
+      `;
+
+      function onTap(e) {
+        if (e?.target && (e.target.closest("button") || e.target.closest("input"))) return;
+        slideToNext();
+      }
+
+      clickCatcher.onclick = onTap;
+      deck.onclick = onTap;
+
+      return wrap;
+    },
+  },
+
+  // ---------- 6) yes-2 (по тапу дальше) ----------
+  {
+    id: "yes-2",
+    render() {
+      canAdvance = true;
+
+      tapHint.classList.add("show");
+      clickCatcher.classList.add("active");
+      clickCatcher.onclick = null;
+      deck.onclick = null;
+
+      const wrap = document.createElement("div");
+      wrap.innerHTML = `
+        <h1>Ещё шаг</h1>
+        <p>Вторая карточка ветки “да”.</p>
+        <p>Тапни, чтобы продолжить.</p>
+      `;
+
+      function onTap(e) {
+        if (e?.target && (e.target.closest("button") || e.target.closest("input"))) return;
+        slideToNext(); // следующая карточка = comment-yes
+      }
+
+      clickCatcher.onclick = onTap;
+      deck.onclick = onTap;
+
+      return wrap;
+    },
+  },
+
+  // ---------- 7) comment-yes (ввод комментария, сохранение по тапу -> end-yes) ----------
+  {
+    id: "comment-yes",
+    render() {
+      canAdvance = true;
+
+      tapHint.classList.add("show");
+      clickCatcher.classList.add("active");
+      clickCatcher.onclick = null;
+      deck.onclick = null;
+
+      const wrap = document.createElement("div");
+      wrap.innerHTML = `
+        <h1>Комментарий</h1>
+        <p>Оставь комментарий перед финалом 👇</p>
+
+        <div class="field">
+          <input id="commentYesInput" type="text" placeholder="твой комментарий (можно пусто)" autocomplete="off" />
+          <div class="status" id="commentYesStatus"></div>
+        </div>
+      `;
+
+      setTimeout(() => {
+        const input = document.getElementById("commentYesInput");
+        const status = document.getElementById("commentYesStatus");
+        input?.focus();
+
+        let saved = false;
+
+        function goNext() {
+          if (saved) return;
+          saved = true;
+
+          const comment = input?.value ?? "";
+
+          submitRowToGoogleForm({
+            sessionId: SESSION_ID,
+            questionId: "comment_yes",
+            questionTitle: "Комментарий (ветка Да)",
+            answerText: comment,
+            answerChoice: "",
+            answerMulti: "",
+            isCorrect: false,
+          });
+
+          const endYesIdx = cards.findIndex((c) => c.id === "end-yes");
+          slideTo(endYesIdx);
+        }
+
+        function onTap(e) {
+          if (e?.target && (e.target.closest("input") || e.target.closest("button"))) return;
+          goNext();
+        }
+
+        clickCatcher.onclick = onTap;
+        deck.onclick = onTap;
+
+        function updateStatus() {
+          const hasText = ((input?.value ?? "").trim().length > 0);
+          status.textContent = hasText
+            ? "Тапни, чтобы сохранить и закончить ✓"
+            : "Тапни, чтобы закончить";
+          status.classList.toggle("ok", hasText);
+        }
+
+        input?.addEventListener("input", updateStatus);
+        updateStatus();
+      }, 0);
+
+      return wrap;
+    },
+  },
+
+  // ---------- 8) Финал ветки "ДА" ----------
+  {
+    id: "end-yes",
+    render() {
+      canAdvance = false;
+
+      tapHint.classList.remove("show");
+      clickCatcher.classList.remove("active");
+      clickCatcher.onclick = null;
+      deck.onclick = null;
+
+      const wrap = document.createElement("div");
+      wrap.innerHTML = `
+        <h1>Финал 🎉</h1>
+        <p>Это конечная карточка ветки “да”.</p>
       `;
       return wrap;
-    }
-  }
+    },
+  },
+
+  // ================== ВЕТКА "НЕТ" ==================
+
+  // ---------- 9) comment-no (ввод комментария, сохранение по тапу -> end-no) ----------
+  {
+    id: "comment-no",
+    render() {
+      canAdvance = true;
+
+      tapHint.classList.add("show");
+      clickCatcher.classList.add("active");
+      clickCatcher.onclick = null;
+      deck.onclick = null;
+
+      const wrap = document.createElement("div");
+      wrap.innerHTML = `
+        <h1>Комментарий</h1>
+        <p>Перед завершением можешь написать комментарий 👇</p>
+
+        <div class="field">
+          <input id="commentNoInput" type="text" placeholder="твой комментарий (можно пусто)" autocomplete="off" />
+          <div class="status" id="commentNoStatus"></div>
+        </div>
+      `;
+
+      setTimeout(() => {
+        const input = document.getElementById("commentNoInput");
+        const status = document.getElementById("commentNoStatus");
+        input?.focus();
+
+        let saved = false;
+
+        function goNext() {
+          if (saved) return;
+          saved = true;
+
+          const comment = input?.value ?? "";
+
+          submitRowToGoogleForm({
+            sessionId: SESSION_ID,
+            questionId: "comment_no",
+            questionTitle: "Комментарий (ветка Нет)",
+            answerText: comment,
+            answerChoice: "",
+            answerMulti: "",
+            isCorrect: false,
+          });
+
+          const endNoIdx = cards.findIndex((c) => c.id === "end-no");
+          slideTo(endNoIdx);
+        }
+
+        function onTap(e) {
+          if (e?.target && (e.target.closest("input") || e.target.closest("button"))) return;
+          goNext();
+        }
+
+        clickCatcher.onclick = onTap;
+        deck.onclick = onTap;
+
+        function updateStatus() {
+          const hasText = ((input?.value ?? "").trim().length > 0);
+          status.textContent = hasText
+            ? "Тапни, чтобы сохранить и завершить ✓"
+            : "Тапни, чтобы завершить";
+          status.classList.toggle("ok", hasText);
+        }
+
+        input?.addEventListener("input", updateStatus);
+        updateStatus();
+      }, 0);
+
+      return wrap;
+    },
+  },
+
+  // ---------- 10) Финал ветки "НЕТ" ----------
+  {
+    id: "end-no",
+    render() {
+      canAdvance = false;
+
+      tapHint.classList.remove("show");
+      clickCatcher.classList.remove("active");
+      clickCatcher.onclick = null;
+      deck.onclick = null;
+
+      const wrap = document.createElement("div");
+      wrap.innerHTML = `
+        <h1>Окей 🙃</h1>
+        <p>Тогда на этом заканчиваем (ветка “нет”).</p>
+      `;
+      return wrap;
+    },
+  },
 ];
 
 // ================== РЕНДЕР ==================
@@ -258,4 +605,3 @@ function renderCard() {
 
 // старт
 renderCard();
-

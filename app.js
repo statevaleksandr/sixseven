@@ -83,6 +83,53 @@ function isCorrectAnswer(raw) {
   return CORRECT_ANSWERS.map(normalize).includes(v);
 }
 
+// ================== УТИЛИТЫ ДЛЯ ТАПОВ ==================
+// На некоторых карточках (с инпутами) нельзя включать clickCatcher,
+// иначе он перехватит тап и инпут не получит фокус (особенно на телефоне).
+function clearGlobalTaps() {
+  clickCatcher.onclick = null;
+  deck.onclick = null;
+}
+
+function setGlobalTapToNext(onlyWhenCanAdvance = false) {
+  // используем clickCatcher: тапы по свободной области будут ловиться стабильно
+  clickCatcher.classList.add("active");
+  const handler = (e) => {
+    if (
+      e?.target &&
+      (e.target.closest("input") || e.target.closest("button") || e.target.closest("a"))
+    ) {
+      return;
+    }
+    if (onlyWhenCanAdvance && !canAdvance) return;
+    slideToNext();
+  };
+  clickCatcher.onclick = handler;
+  deck.onclick = handler;
+}
+
+function setCardTapToNext(wrap, onlyWhenCanAdvance = false, customNext) {
+  // тут clickCatcher должен быть выключен, иначе он перекроет инпут
+  clickCatcher.classList.remove("active");
+  clearGlobalTaps();
+
+  const go = () => {
+    if (onlyWhenCanAdvance && !canAdvance) return;
+    if (typeof customNext === "function") customNext();
+    else slideToNext();
+  };
+
+  wrap.addEventListener("click", (e) => {
+    if (
+      e?.target &&
+      (e.target.closest("input") || e.target.closest("button") || e.target.closest("a"))
+    ) {
+      return;
+    }
+    go();
+  });
+}
+
 // ================== АНИМАЦИЯ ПЕРЕХОДА ==================
 function slideTo(targetStep) {
   if (targetStep < 0 || targetStep >= cards.length) return;
@@ -118,8 +165,7 @@ const cards = [
 
       tapHint.classList.remove("show");
       clickCatcher.classList.remove("active");
-      clickCatcher.onclick = null;
-      deck.onclick = null;
+      clearGlobalTaps();
 
       const wrap = document.createElement("div");
       wrap.innerHTML = `
@@ -136,7 +182,6 @@ const cards = [
           (e) => {
             e.preventDefault();
             e.stopPropagation();
-
             audio.play().catch(() => {});
             slideToNext();
           },
@@ -148,7 +193,7 @@ const cards = [
     },
   },
 
-  // ---------- 2) Ввод ответа (переход по тапу, только когда правильно) ----------
+  // ---------- 2) Ввод ответа (переход по тапу только когда правильно) ----------
   {
     id: "answer",
     render() {
@@ -156,8 +201,7 @@ const cards = [
 
       tapHint.classList.remove("show");
       clickCatcher.classList.remove("active");
-      clickCatcher.onclick = null;
-      deck.onclick = null;
+      clearGlobalTaps();
 
       const wrap = document.createElement("div");
       wrap.innerHTML = `
@@ -186,7 +230,8 @@ const cards = [
             canAdvance = true;
 
             tapHint.classList.add("show");
-            clickCatcher.classList.add("active");
+            // Тапаем по свободной области (через clickCatcher), но только когда canAdvance=true
+            setGlobalTapToNext(true);
           } else {
             status.textContent = "";
             status.classList.remove("ok");
@@ -194,6 +239,7 @@ const cards = [
 
             tapHint.classList.remove("show");
             clickCatcher.classList.remove("active");
+            clearGlobalTaps();
           }
         }
 
@@ -203,7 +249,13 @@ const cards = [
           updateUI();
         });
 
-        function goNext() {
+        // чтобы тап/клик по инпуту никогда не листал
+        input?.addEventListener("pointerdown", (e) => e.stopPropagation());
+        input?.addEventListener("click", (e) => e.stopPropagation());
+
+        // Переопределяем переход, чтобы перед уходом сохранить ответ
+        const originalSlideToNext = slideToNext;
+        function goNextWithSave() {
           if (!canAdvance) return;
 
           if (!saved) {
@@ -219,23 +271,21 @@ const cards = [
             });
           }
 
-          slideToNext();
+          originalSlideToNext();
         }
 
-        function onTap(e) {
+        // Вместо стандартного глобального перехода — ставим кастомный
+        // (через clickCatcher, чтобы можно было тапнуть мимо инпута)
+        clickCatcher.onclick = (e) => {
           if (
             e?.target &&
-            (e.target.tagName === "INPUT" ||
-              e.target.closest("input") ||
-              e.target.closest("button"))
+            (e.target.closest("input") || e.target.closest("button") || e.target.closest("a"))
           ) {
             return;
           }
-          goNext();
-        }
-
-        clickCatcher.onclick = onTap;
-        deck.onclick = onTap;
+          goNextWithSave();
+        };
+        deck.onclick = clickCatcher.onclick;
       }, 0);
 
       return wrap;
@@ -249,9 +299,8 @@ const cards = [
       canAdvance = true;
 
       tapHint.classList.add("show");
-      clickCatcher.classList.add("active");
-      clickCatcher.onclick = null;
-      deck.onclick = null;
+      // Здесь можно спокойно использовать clickCatcher
+      setGlobalTapToNext(false);
 
       const wrap = document.createElement("div");
       wrap.innerHTML = `
@@ -259,15 +308,6 @@ const cards = [
         <p>Это карточка просто с текстом.</p>
         <p>Тапни в любом месте, чтобы продолжить.</p>
       `;
-
-      function onTap(e) {
-        if (e?.target && (e.target.closest("button") || e.target.closest("input"))) return;
-        slideToNext();
-      }
-
-      clickCatcher.onclick = onTap;
-      deck.onclick = onTap;
-
       return wrap;
     },
   },
@@ -280,8 +320,7 @@ const cards = [
 
       tapHint.classList.remove("show");
       clickCatcher.classList.remove("active");
-      clickCatcher.onclick = null;
-      deck.onclick = null;
+      clearGlobalTaps();
 
       const wrap = document.createElement("div");
       wrap.innerHTML = `
@@ -351,11 +390,8 @@ const cards = [
     id: "yes-1",
     render() {
       canAdvance = true;
-
       tapHint.classList.add("show");
-      clickCatcher.classList.add("active");
-      clickCatcher.onclick = null;
-      deck.onclick = null;
+      setGlobalTapToNext(false);
 
       const wrap = document.createElement("div");
       wrap.innerHTML = `
@@ -363,15 +399,6 @@ const cards = [
         <p>Это первая карточка ветки “да”.</p>
         <p>Тапни, чтобы продолжить.</p>
       `;
-
-      function onTap(e) {
-        if (e?.target && (e.target.closest("button") || e.target.closest("input"))) return;
-        slideToNext();
-      }
-
-      clickCatcher.onclick = onTap;
-      deck.onclick = onTap;
-
       return wrap;
     },
   },
@@ -381,11 +408,8 @@ const cards = [
     id: "yes-2",
     render() {
       canAdvance = true;
-
       tapHint.classList.add("show");
-      clickCatcher.classList.add("active");
-      clickCatcher.onclick = null;
-      deck.onclick = null;
+      setGlobalTapToNext(false);
 
       const wrap = document.createElement("div");
       wrap.innerHTML = `
@@ -393,91 +417,89 @@ const cards = [
         <p>Вторая карточка ветки “да”.</p>
         <p>Тапни, чтобы продолжить.</p>
       `;
+      return wrap;
+    },
+  },
 
-      function onTap(e) {
-        if (e?.target && (e.target.closest("button") || e.target.closest("input"))) return;
-        slideToNext(); // следующая карточка = comment-yes
+  // ---------- 7) comment-yes (ИНПУТ: clickCatcher выключен, переход по тапу по карточке) ----------
+  {
+  id: "comment-yes",
+  render() {
+    canAdvance = true;
+
+    tapHint.classList.add("show");
+
+    // ВАЖНО: clickCatcher выключаем, иначе он перекроет input
+    clickCatcher.classList.remove("active");
+    clickCatcher.onclick = null;
+    deck.onclick = null;
+
+    const wrap = document.createElement("div");
+    wrap.innerHTML = `
+      <h1>Комментарий</h1>
+      <p>Оставь комментарий перед финалом 👇</p>
+
+      <div class="field">
+        <input id="commentYesInput" type="text"
+               placeholder="твой комментарий (можно пусто)"
+               autocomplete="off" />
+        <div class="status" id="commentYesStatus"></div>
+      </div>
+    `;
+
+    setTimeout(() => {
+      const input = document.getElementById("commentYesInput");
+      const status = document.getElementById("commentYesStatus");
+
+      let saved = false;
+
+      function saveAndGo() {
+        if (saved) return;
+        saved = true;
+
+        const comment = input?.value ?? "";
+
+        submitRowToGoogleForm({
+          sessionId: SESSION_ID,
+          questionId: "comment_yes",
+          questionTitle: "Комментарий (ветка Да)",
+          answerText: comment,
+          answerChoice: "",
+          answerMulti: "",
+          isCorrect: false,
+        });
+
+        const endYesIdx = cards.findIndex((c) => c.id === "end-yes");
+        slideTo(endYesIdx);
       }
 
-      clickCatcher.onclick = onTap;
-      deck.onclick = onTap;
+      // Тап по input НЕ должен листать
+      input?.addEventListener("pointerdown", (e) => e.stopPropagation());
+      input?.addEventListener("click", (e) => e.stopPropagation());
 
-      return wrap;
-    },
-  },
+      // Тап по КАРТОЧКЕ (вне input) = сохранить и перейти
+      cardEl.onpointerdown = (e) => {
+        if (e?.target && e.target.closest("input")) return;
+        saveAndGo();
+      };
 
-  // ---------- 7) comment-yes (ввод комментария, сохранение по тапу -> end-yes) ----------
-  {
-    id: "comment-yes",
-    render() {
-      canAdvance = true;
+      function updateStatus() {
+        const hasText = ((input?.value ?? "").trim().length > 0);
+        status.textContent = hasText
+          ? "Тапни по карточке (мимо поля), чтобы сохранить ✓"
+          : "Тапни по карточке (мимо поля), чтобы продолжить";
+        status.classList.toggle("ok", hasText);
+      }
 
-      tapHint.classList.add("show");
-      clickCatcher.classList.add("active");
-      clickCatcher.onclick = null;
-      deck.onclick = null;
+      input?.addEventListener("input", updateStatus);
+      updateStatus();
+    }, 0);
 
-      const wrap = document.createElement("div");
-      wrap.innerHTML = `
-        <h1>Комментарий</h1>
-        <p>Оставь комментарий перед финалом 👇</p>
+    return wrap;
+  }
+},
 
-        <div class="field">
-          <input id="commentYesInput" type="text" placeholder="твой комментарий (можно пусто)" autocomplete="off" />
-          <div class="status" id="commentYesStatus"></div>
-        </div>
-      `;
 
-      setTimeout(() => {
-        const input = document.getElementById("commentYesInput");
-        const status = document.getElementById("commentYesStatus");
-        input?.focus();
-
-        let saved = false;
-
-        function goNext() {
-          if (saved) return;
-          saved = true;
-
-          const comment = input?.value ?? "";
-
-          submitRowToGoogleForm({
-            sessionId: SESSION_ID,
-            questionId: "comment_yes",
-            questionTitle: "Комментарий (ветка Да)",
-            answerText: comment,
-            answerChoice: "",
-            answerMulti: "",
-            isCorrect: false,
-          });
-
-          const endYesIdx = cards.findIndex((c) => c.id === "end-yes");
-          slideTo(endYesIdx);
-        }
-
-        function onTap(e) {
-          if (e?.target && (e.target.closest("input") || e.target.closest("button"))) return;
-          goNext();
-        }
-
-        clickCatcher.onclick = onTap;
-        deck.onclick = onTap;
-
-        function updateStatus() {
-          const hasText = ((input?.value ?? "").trim().length > 0);
-          status.textContent = hasText
-            ? "Тапни, чтобы сохранить и закончить ✓"
-            : "Тапни, чтобы закончить";
-          status.classList.toggle("ok", hasText);
-        }
-
-        input?.addEventListener("input", updateStatus);
-        updateStatus();
-      }, 0);
-
-      return wrap;
-    },
-  },
 
   // ---------- 8) Финал ветки "ДА" ----------
   {
@@ -487,8 +509,7 @@ const cards = [
 
       tapHint.classList.remove("show");
       clickCatcher.classList.remove("active");
-      clickCatcher.onclick = null;
-      deck.onclick = null;
+      clearGlobalTaps();
 
       const wrap = document.createElement("div");
       wrap.innerHTML = `
@@ -501,78 +522,85 @@ const cards = [
 
   // ================== ВЕТКА "НЕТ" ==================
 
-  // ---------- 9) comment-no (ввод комментария, сохранение по тапу -> end-no) ----------
+  // ---------- 9) comment-no (ИНПУТ: clickCatcher выключен, переход по тапу по карточке) ----------
   {
-    id: "comment-no",
-    render() {
-      canAdvance = true;
+  id: "comment-no",
+  render() {
+    canAdvance = true;
 
-      tapHint.classList.add("show");
-      clickCatcher.classList.add("active");
-      clickCatcher.onclick = null;
-      deck.onclick = null;
+    tapHint.classList.add("show");
 
-      const wrap = document.createElement("div");
-      wrap.innerHTML = `
-        <h1>Комментарий</h1>
-        <p>Перед завершением можешь написать комментарий 👇</p>
+    // ВАЖНО: clickCatcher выключаем, иначе он перекроет input
+    clickCatcher.classList.remove("active");
+    clickCatcher.onclick = null;
+    deck.onclick = null;
 
-        <div class="field">
-          <input id="commentNoInput" type="text" placeholder="твой комментарий (можно пусто)" autocomplete="off" />
-          <div class="status" id="commentNoStatus"></div>
-        </div>
-      `;
+    const wrap = document.createElement("div");
+    wrap.innerHTML = `
+      <h1>Комментарий</h1>
+      <p>Перед завершением можешь написать комментарий 👇</p>
 
-      setTimeout(() => {
-        const input = document.getElementById("commentNoInput");
-        const status = document.getElementById("commentNoStatus");
-        input?.focus();
+      <div class="field">
+        <input id="commentNoInput" type="text"
+               placeholder="твой комментарий (можно пусто)"
+               autocomplete="off" />
+        <div class="status" id="commentNoStatus"></div>
+      </div>
+    `;
 
-        let saved = false;
+    setTimeout(() => {
+      const input = document.getElementById("commentNoInput");
+      const status = document.getElementById("commentNoStatus");
 
-        function goNext() {
-          if (saved) return;
-          saved = true;
+      let saved = false;
 
-          const comment = input?.value ?? "";
+      function saveAndGo() {
+        if (saved) return;
+        saved = true;
 
-          submitRowToGoogleForm({
-            sessionId: SESSION_ID,
-            questionId: "comment_no",
-            questionTitle: "Комментарий (ветка Нет)",
-            answerText: comment,
-            answerChoice: "",
-            answerMulti: "",
-            isCorrect: false,
-          });
+        const comment = input?.value ?? "";
 
-          const endNoIdx = cards.findIndex((c) => c.id === "end-no");
-          slideTo(endNoIdx);
-        }
+        submitRowToGoogleForm({
+          sessionId: SESSION_ID,
+          questionId: "comment_no",
+          questionTitle: "Комментарий (ветка Нет)",
+          answerText: comment,
+          answerChoice: "",
+          answerMulti: "",
+          isCorrect: false,
+        });
 
-        function onTap(e) {
-          if (e?.target && (e.target.closest("input") || e.target.closest("button"))) return;
-          goNext();
-        }
+        const endNoIdx = cards.findIndex((c) => c.id === "end-no");
+        slideTo(endNoIdx);
+      }
 
-        clickCatcher.onclick = onTap;
-        deck.onclick = onTap;
+      // Тап по input НЕ должен листать
+      input?.addEventListener("pointerdown", (e) => e.stopPropagation());
+      input?.addEventListener("click", (e) => e.stopPropagation());
 
-        function updateStatus() {
-          const hasText = ((input?.value ?? "").trim().length > 0);
-          status.textContent = hasText
-            ? "Тапни, чтобы сохранить и завершить ✓"
-            : "Тапни, чтобы завершить";
-          status.classList.toggle("ok", hasText);
-        }
+      // Тап по КАРТОЧКЕ (вне input) = сохранить и перейти
+      cardEl.onpointerdown = (e) => {
+        if (e?.target && e.target.closest("input")) return;
+        saveAndGo();
+      };
 
-        input?.addEventListener("input", updateStatus);
-        updateStatus();
-      }, 0);
+      function updateStatus() {
+        const hasText = ((input?.value ?? "").trim().length > 0);
+        status.textContent = hasText
+          ? "Тапни по карточке (мимо поля), чтобы сохранить ✓"
+          : "Тапни по карточке (мимо поля), чтобы завершить";
+        status.classList.toggle("ok", hasText);
+      }
 
-      return wrap;
-    },
-  },
+      input?.addEventListener("input", updateStatus);
+      updateStatus();
+    }, 0);
+
+    return wrap;
+  }
+},
+
+
 
   // ---------- 10) Финал ветки "НЕТ" ----------
   {
@@ -582,8 +610,7 @@ const cards = [
 
       tapHint.classList.remove("show");
       clickCatcher.classList.remove("active");
-      clickCatcher.onclick = null;
-      deck.onclick = null;
+      clearGlobalTaps();
 
       const wrap = document.createElement("div");
       wrap.innerHTML = `
@@ -597,11 +624,16 @@ const cards = [
 
 // ================== РЕНДЕР ==================
 function renderCard() {
+  // чтобы обработчик с прошлой карточки не оставался
+  cardEl.onclick = null;
+  cardEl.onpointerdown = null;
+
   cardEl.classList.remove("deal-in");
   cardEl.innerHTML = "";
   cardEl.appendChild(cards[step].render());
   requestAnimationFrame(() => cardEl.classList.add("deal-in"));
 }
+
 
 // старт
 renderCard();

@@ -108,12 +108,16 @@ function slideOut(currentCardEl, onDone) {
   if (isTransitioning) return;
   isTransitioning = true;
 
+  let done = false;
+
   currentCardEl.classList.remove("slide-out");
-  // перезапуск анимации
-  void currentCardEl.offsetWidth;
+  void currentCardEl.offsetWidth; // reflow для перезапуска анимации
   currentCardEl.classList.add("slide-out");
 
   const finish = () => {
+    if (done) return;
+    done = true;
+
     currentCardEl.removeEventListener("animationend", finish);
     currentCardEl.classList.remove("slide-out");
     isTransitioning = false;
@@ -121,17 +125,11 @@ function slideOut(currentCardEl, onDone) {
   };
 
   currentCardEl.addEventListener("animationend", finish, { once: true });
-  // страховка на случай, если animationend не придёт
+
+  // страховка, но теперь она не вызовет onDone дважды
   setTimeout(finish, 450);
 }
 
-function nextCard() {
-  if (step >= cards.length - 1) return;
-  slideOut(cardEl, () => {
-    step++;
-    renderCurrentCard();
-  });
-}
 
 // ================== КАРТОЧКИ ==================
 const cards = [
@@ -287,3 +285,4 @@ function normalize(s){ return (s ?? "").trim().toLowerCase(); }
 
 // старт
 renderCurrentCard();
+

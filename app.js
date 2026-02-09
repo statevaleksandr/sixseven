@@ -241,6 +241,36 @@ function renderCurrentCard() {
 }
 
 // ================== ПЕРЕХОД “СТЕКЛО” ==================
+function waitAnimation(anim, fallbackMs) {
+  // Универсальный await для Web Animations API (в т.ч. Safari)
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      resolve();
+    };
+
+    // 1) Современные браузеры
+    if (anim && anim.finished && typeof anim.finished.then === "function") {
+      anim.finished.then(finish).catch(finish);
+      return;
+    }
+
+    // 2) Safari/старые: onfinish / addEventListener('finish')
+    if (anim) {
+      if (typeof anim.addEventListener === "function") {
+        anim.addEventListener("finish", finish, { once: true });
+      } else {
+        anim.onfinish = finish;
+      }
+    }
+
+    // 3) Страховка
+    setTimeout(finish, fallbackMs);
+  });
+}
+
 function shatterOut(currentCardEl, onDone) {
   const rect = currentCardEl.getBoundingClientRect();
   const cols = 6;
@@ -257,13 +287,15 @@ function shatterOut(currentCardEl, onDone) {
   clone.style.position = "absolute";
   clone.style.inset = "0";
 
+  // Прячем исходную карточку
   currentCardEl.style.visibility = "hidden";
   currentCardEl.parentElement.appendChild(shards);
 
   const pieceW = rect.width / cols;
   const pieceH = rect.height / rows;
 
-  const animations = [];
+  const waits = [];
+  let maxDuration = 0;
 
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
@@ -291,25 +323,46 @@ function shatterOut(currentCardEl, onDone) {
       const dy = (cy * 260) + rand(-60, 60);
       const rot = rand(-180, 180);
 
+      const duration = 520 + rand(-80, 140);
+      maxDuration = Math.max(maxDuration, duration);
+
+      // Если animate недоступен (очень редкий случай) — просто таймаут
+      if (typeof shard.animate !== "function") {
+        waits.push(new Promise(res => setTimeout(res, duration + 80)));
+        continue;
+      }
+
       const anim = shard.animate([
         { transform: "translate(0px, 0px) rotate(0deg)", opacity: 1, filter: "blur(0px)" },
         { transform: `translate(${dx}px, ${dy}px) rotate(${rot}deg)`, opacity: 0, filter: "blur(2px)" }
       ], {
-        duration: 520 + rand(-80, 140),
+        duration,
         easing: "cubic-bezier(.2,.8,.2,1)",
         fill: "forwards"
       });
 
-      animations.push(anim);
+      waits.push(waitAnimation(anim, duration + 120));
     }
   }
 
-  Promise.all(animations.map(a => a.finished.catch(() => {}))).then(() => {
+  // Финальная страховка: даже если что-то пошло не так — перейти дальше
+  const HARD_TIMEOUT = maxDuration + 400;
+
+  Promise.race([
+    Promise.all(waits),
+    new Promise(res => setTimeout(res, HARD_TIMEOUT))
+  ]).then(() => {
     shards.remove();
+    currentCardEl.style.visibility = "visible";
+    onDone?.();
+  }).catch(() => {
+    // на всякий случай
+    try { shards.remove(); } catch (_) {}
     currentCardEl.style.visibility = "visible";
     onDone?.();
   });
 }
+
 
 function nextCard() {
   if (step >= cards.length - 1) return;
@@ -331,3 +384,4 @@ function rand(min, max){ return Math.random() * (max - min) + min; }
 
 // старт
 renderCurrentCard();
+

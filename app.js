@@ -1,12 +1,12 @@
-// ================== НАСТРОЙКИ ==================
+// 
 const AUDIO_SRC = "music.mp3";
-const CORRECT_ANSWERS = ["justin bieber", "джастин бибер"];
+const CORRECT_ANSWERS = ["purpose", "Purpose"];
 
-// Google Form endpoint (ВАЖНО: /formResponse)
+// 
 const FORM_RESPONSE_URL =
   "https://docs.google.com/forms/d/e/1FAIpQLSeExXdt2She7pOIeMIjmwb7JL_oRmrVwCZxoVN4dSemzHr4aQ/formResponse";
 
-// entry.* (как у тебя, чтобы таблица НЕ слетела)
+// entry.* 
 const FORM_FIELDS = {
   sessionId: "entry.53703048",
   questionId: "entry.944260219",
@@ -74,7 +74,7 @@ function submitRowToGoogleForm(row) {
   }, 1500);
 }
 
-// ================== HELPERS ==================
+// HELPERS 
 function normalize(s) {
   return (s ?? "").trim().toLowerCase();
 }
@@ -83,16 +83,15 @@ function isCorrectAnswer(raw) {
   return CORRECT_ANSWERS.map(normalize).includes(v);
 }
 
-// ================== УТИЛИТЫ ДЛЯ ТАПОВ ==================
-// На некоторых карточках (с инпутами) нельзя включать clickCatcher,
-// иначе он перехватит тап и инпут не получит фокус (особенно на телефоне).
+// ТАПЫ
+
 function clearGlobalTaps() {
   clickCatcher.onclick = null;
   deck.onclick = null;
 }
 
 function setGlobalTapToNext(onlyWhenCanAdvance = false) {
-  // используем clickCatcher: тапы по свободной области будут ловиться стабильно
+  
   clickCatcher.classList.add("active");
   const handler = (e) => {
     if (
@@ -109,7 +108,7 @@ function setGlobalTapToNext(onlyWhenCanAdvance = false) {
 }
 
 function setCardTapToNext(wrap, onlyWhenCanAdvance = false, customNext) {
-  // тут clickCatcher должен быть выключен, иначе он перекроет инпут
+  
   clickCatcher.classList.remove("active");
   clearGlobalTaps();
 
@@ -130,7 +129,7 @@ function setCardTapToNext(wrap, onlyWhenCanAdvance = false, customNext) {
   });
 }
 
-// ================== АНИМАЦИЯ ПЕРЕХОДА ==================
+// АНИМАЦИЯ ПЕРЕХОДА 
 function slideTo(targetStep) {
   if (targetStep < 0 || targetStep >= cards.length) return;
   if (targetStep === step) return;
@@ -169,7 +168,7 @@ const cards = [
 
       const wrap = document.createElement("div");
       wrap.innerHTML = `
-        <h1>Добрый день/вечер:0</h1>
+        <h1>Добрый вечер:0</h1>
         <p>Это некий скам-опрос</p>
         <p>Если готова, то можешь начинать&lt;3</p>
         <div class="spacer"></div>
@@ -206,10 +205,11 @@ const cards = [
       const wrap = document.createElement("div");
       wrap.innerHTML = `
         <h1>Проверка подшар-отдела🗿</h1>
-        <p>Кто исполняет под эту мелодию?🤔</p>
+        <p>На каком альбоме песенка такая?🤔</p>
+        <p>:0</p>
 
         <div class="field">
-          <input id="answerInput" type="text" placeholder="можешь ввести на русском/английском" autocomplete="off" />
+          <input id="answerInput" type="text" placeholder="ну да вспомнить придется а что поделать " autocomplete="off" />
           <div class="status" id="status"></div>
         </div>
       `;
@@ -230,7 +230,7 @@ const cards = [
             canAdvance = true;
 
             tapHint.classList.add("show");
-            // Тапаем по свободной области (через clickCatcher), но только когда canAdvance=true
+            
             setGlobalTapToNext(true);
           } else {
             status.textContent = "";
@@ -249,11 +249,11 @@ const cards = [
           updateUI();
         });
 
-        // чтобы тап/клик по инпуту никогда не листал
+        
         input?.addEventListener("pointerdown", (e) => e.stopPropagation());
         input?.addEventListener("click", (e) => e.stopPropagation());
 
-        // Переопределяем переход, чтобы перед уходом сохранить ответ
+        
         const originalSlideToNext = slideToNext;
         function goNextWithSave() {
           if (!canAdvance) return;
@@ -274,8 +274,8 @@ const cards = [
           originalSlideToNext();
         }
 
-        // Вместо стандартного глобального перехода — ставим кастомный
-        // (через clickCatcher, чтобы можно было тапнуть мимо инпута)
+        
+        
         clickCatcher.onclick = (e) => {
           if (
             e?.target &&
@@ -292,7 +292,7 @@ const cards = [
     },
   },
 
-  // ---------- 3) Просто текст (по тапу дальше) ----------
+  // ---------- 3) Просто текст ----------
   {
     id: "after-answer-text",
     render() {
@@ -304,9 +304,8 @@ const cards = [
 
       const wrap = document.createElement("div");
       wrap.innerHTML = `
-        <h1>Отлично!</h1>
-        <p>Это карточка просто с текстом.</p>
-        <p>Тапни в любом месте, чтобы продолжить.</p>
+        <h1>К делу</h1>
+        <p>👍🏻🤷‍♂️</p>
       `;
       return wrap;
     },
@@ -324,11 +323,12 @@ const cards = [
 
       const wrap = document.createElement("div");
       wrap.innerHTML = `
-        <h1>Вопрос</h1>
-        <p>Продолжаем дальше?</p>
+        <h1>Согласна ли ты провести 14 февраля со мной👉🏻👈🏻?</h1>
+        <p>да нет</p>
 
         <div class="btn-row">
           <button class="btn" id="yesBtn" type="button">Да</button>
+          
           <button class="btn" id="noBtn" type="button">Нет</button>
         </div>
       `;
@@ -348,7 +348,7 @@ const cards = [
           submitRowToGoogleForm({
             sessionId: SESSION_ID,
             questionId: "q2",
-            questionTitle: "Продолжаем?",
+            questionTitle: "да нет",
             answerText: "",
             answerChoice: choice,
             answerMulti: "",
@@ -395,9 +395,8 @@ const cards = [
 
       const wrap = document.createElement("div");
       wrap.innerHTML = `
-        <h1>Супер 😄</h1>
-        <p>Это первая карточка ветки “да”.</p>
-        <p>Тапни, чтобы продолжить.</p>
+        <h1>Я очень рад!🎆:0💝</h1>
+        <p>Но есть некая грустность😔, надеюсь, вы простите меня(я пиздец проебался xd)</p>
       `;
       return wrap;
     },
@@ -413,9 +412,9 @@ const cards = [
 
       const wrap = document.createElement("div");
       wrap.innerHTML = `
-        <h1>Ещё шаг</h1>
-        <p>Вторая карточка ветки “да”.</p>
-        <p>Тапни, чтобы продолжить.</p>
+        <h1>Однако!</h1>
+        <p>Все будет, но немного не в том тайминге, котором я хотел:((</p>
+        <p>Не судите строго мое первое 14 февраля. Это так волнительно😩пхахах</p>
       `;
       return wrap;
     },
@@ -436,12 +435,12 @@ const cards = [
 
     const wrap = document.createElement("div");
     wrap.innerHTML = `
-      <h1>Комментарий</h1>
-      <p>Оставь комментарий перед финалом 👇</p>
+      <h1>По желанию</h1>
+      <p>Можешь оставить комментарии/возражения и тд(я их увижу)</p>
 
       <div class="field">
         <input id="commentYesInput" type="text"
-               placeholder="твой комментарий (можно пусто)"
+               placeholder="🎁"
                autocomplete="off" />
         <div class="status" id="commentYesStatus"></div>
       </div>
@@ -473,11 +472,11 @@ const cards = [
         slideTo(endYesIdx);
       }
 
-      // Тап по input НЕ должен листать
+      
       input?.addEventListener("pointerdown", (e) => e.stopPropagation());
       input?.addEventListener("click", (e) => e.stopPropagation());
 
-      // Тап по КАРТОЧКЕ (вне input) = сохранить и перейти
+      
       cardEl.onpointerdown = (e) => {
         if (e?.target && e.target.closest("input")) return;
         saveAndGo();
@@ -486,8 +485,8 @@ const cards = [
       function updateStatus() {
         const hasText = ((input?.value ?? "").trim().length > 0);
         status.textContent = hasText
-          ? "Тапни по карточке (мимо поля), чтобы сохранить ✓"
-          : "Тапни по карточке (мимо поля), чтобы продолжить";
+          ? "Тапни по карточке, чтобы сохранить"
+          : "Чтобы скипнуть просто тапни по карточке";
         status.classList.toggle("ok", hasText);
       }
 
@@ -513,16 +512,19 @@ const cards = [
 
       const wrap = document.createElement("div");
       wrap.innerHTML = `
-        <h1>Финал 🎉</h1>
-        <p>Это конечная карточка ветки “да”.</p>
+        <h1>Спасибо, что прошли этот опрос!❤️</h1>
+        <h2>Я вам напишу попозже</h2>
+        <p>Можете закрыть вкладку, чтоб песенка остановилась</p>
+        
+        
       `;
       return wrap;
     },
   },
 
-  // ================== ВЕТКА "НЕТ" ==================
+  //ВЕТКА "НЕТ" 
 
-  // ---------- 9) comment-no (ИНПУТ: clickCatcher выключен, переход по тапу по карточке) ----------
+  // ---------- 9) comment-no ----------
   {
   id: "comment-no",
   render() {
@@ -537,12 +539,12 @@ const cards = [
 
     const wrap = document.createElement("div");
     wrap.innerHTML = `
-      <h1>Комментарий</h1>
-      <p>Перед завершением можешь написать комментарий 👇</p>
+      <h1>По желанию</h1>
+      <p>Можешь написать что-то(я увижу)</p>
 
       <div class="field">
         <input id="commentNoInput" type="text"
-               placeholder="твой комментарий (можно пусто)"
+               placeholder="🧐"
                autocomplete="off" />
         <div class="status" id="commentNoStatus"></div>
       </div>
@@ -563,7 +565,7 @@ const cards = [
         submitRowToGoogleForm({
           sessionId: SESSION_ID,
           questionId: "comment_no",
-          questionTitle: "Комментарий (ветка Нет)",
+          questionTitle: "По желанию",
           answerText: comment,
           answerChoice: "",
           answerMulti: "",
@@ -587,8 +589,8 @@ const cards = [
       function updateStatus() {
         const hasText = ((input?.value ?? "").trim().length > 0);
         status.textContent = hasText
-          ? "Тапни по карточке (мимо поля), чтобы сохранить ✓"
-          : "Тапни по карточке (мимо поля), чтобы завершить";
+          ? "Тапни по карточке, чтобы сохранить"
+          : "Тапни по карточке, если без комментариев";
         status.classList.toggle("ok", hasText);
       }
 
@@ -614,8 +616,9 @@ const cards = [
 
       const wrap = document.createElement("div");
       wrap.innerHTML = `
-        <h1>Окей 🙃</h1>
-        <p>Тогда на этом заканчиваем (ветка “нет”).</p>
+        <h1>Данный моментик запишется ручкой мдааа...</h1>
+        <p>Можешь закрыть вкладку, чтоб песенка остановилась</p>
+        
       `;
       return wrap;
     },

@@ -210,3 +210,12 @@ input[type="text"]::placeholder{
   .btn{ width: 100%; text-align:center; align-self: stretch; }
   input[type="text"]{ width: 100%; }
 }
+
+.end-img{
+  display:block;
+  max-width:100%;
+  max-height:45vh;
+  height:auto;
+  object-fit:contain;
+  margin-top:12px;
+}
